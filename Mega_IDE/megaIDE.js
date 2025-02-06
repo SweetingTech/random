@@ -18,20 +18,20 @@
  *  - For the GUI, set the environment variable RUN_GUI=1 and build/bundle as needed.
  */
 
-require('dotenv').config();
-const express = require('express');
-const http = require('http');
-const socketIO = require('socket.io');
-const { program } = require('commander');
-const fetch = require('node-fetch');
-const fs = require('fs');
-const path = require('path');
-const React = require('react');
-const ReactDOM = require('react-dom');
-const { BrowserRouter, Routes, Route, Link } = require('react-router-dom');
-const ioClient = require('socket.io-client');
-const MonacoEditor = require('react-monaco-editor').default;
-const DOMPurify = require('dompurify');
+import 'dotenv/config';
+import express from 'express';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import { program } from 'commander';
+import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { io as ioClient } from 'socket.io-client';
+import MonacoEditor from 'react-monaco-editor';
+import DOMPurify from 'dompurify';
 
 // APIManager for handling external API calls
 const APIManager = {
@@ -71,7 +71,7 @@ APIManager.addAPI('claude', { baseUrl: 'https://api.anthropic.com/v1', headers: 
 // Collaboration Server
 const collaborationApp = express();
 const collaborationServer = http.createServer(collaborationApp);
-const io = socketIO(collaborationServer, { cors: { origin: '*' } });
+const io = new SocketIOServer(collaborationServer, { cors: { origin: '*' } });
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
   socket.on('codeChange', (data) => socket.broadcast.emit('codeChange', data));
@@ -134,4 +134,4 @@ program.command('run <file>').action((file) => require('child_process').exec(`no
 program.command('settings').action(() => console.log('Launching settings interface...'));
 if (process.argv.length > 2) program.parse(process.argv);
 
-module.exports = { APIManager };
+export { APIManager };
