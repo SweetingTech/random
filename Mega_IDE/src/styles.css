@@ -40,7 +40,43 @@ body {
 }
 
 .ide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
+}
+
+.ai-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.provider-select {
+  padding: 0.5rem;
+  background-color: #2d2d2d;
+  color: #fff;
+  border: 1px solid #3d3d3d;
+  border-radius: 4px;
+}
+
+.ai-assist-button {
+  padding: 0.5rem 1rem;
+  background-color: #0078d4;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.ai-assist-button:hover:not(:disabled) {
+  background-color: #106ebe;
+}
+
+.ai-assist-button:disabled {
+  background-color: #2d2d2d;
+  cursor: not-allowed;
 }
 
 .editor-container {
@@ -67,10 +103,19 @@ body {
   margin: 0 auto;
 }
 
+.settings-group {
+  margin-bottom: 2rem;
+}
+
+.settings-group h3 {
+  margin-bottom: 1rem;
+  color: #0078d4;
+}
+
 .settings-input {
   width: 100%;
   padding: 0.5rem;
-  margin: 1rem 0;
+  margin: 0.5rem 0;
   background-color: #2d2d2d;
   border: 1px solid #3d3d3d;
   color: #fff;
@@ -94,6 +139,7 @@ body {
 .status-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0.5rem 1rem;
   background-color: #2d2d2d;
   border-top: 1px solid #3d3d3d;
@@ -121,5 +167,33 @@ body {
 }
 
 .connection-status.disconnected::before {
+  background-color: #f44336;
+}
+
+.provider-statuses {
+  display: flex;
+  gap: 1rem;
+}
+
+.provider-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.provider-status::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.provider-status.connected::before {
+  background-color: #4caf50;
+}
+
+.provider-status.error::before {
   background-color: #f44336;
 }
