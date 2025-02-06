@@ -83,36 +83,11 @@ export const useSocketHandlers = ({
   }, [socket, setAiResponse]);
 
   useEffect(() => {
-    const handleFolderContents = ({ root }: SocketResponse) => {
-      setFileSystem(root);
-      setSocketState(prev => ({ ...prev, isLoadingFileSystem: false }));
-    };
-
-    const handleFileContent = ({ path, content }: FileContentResponse) => {
-      if (activeFile && activeFile.path === path) {
-        setActiveFile({ ...activeFile, content });
-      }
-      setSocketState(prev => ({ ...prev, isLoadingFile: false }));
-    };
-
-    const handleAiResponse = (response: AIResponse) => {
-      setAiResponse(response.content);
-      setSocketState(prev => ({ ...prev, isProcessingAI: false }));
-    };
-
-    const handleError = (error: FileOperationError) => {
-      setSocketState(prev => ({ 
-        ...prev, 
-        error,
-        isLoadingFileSystem: false,
-        isLoadingFile: false,
-        isProcessingAI: false
-      }));
-    };
-
     const setupSocketListeners = () => {
       socket.on('folderContents', (data: SocketResponse) => {
-        setFileSystem(data.root);
+        if (data.root) {
+          setFileSystem(data.root || null);
+        }
         setSocketState(prev => ({ ...prev, isLoadingFileSystem: false }));
       });
 
@@ -124,7 +99,7 @@ export const useSocketHandlers = ({
       });
 
       socket.on('aiResponse', (data: AIResponse) => {
-        setAiResponse(data.content);
+        setAiResponse(data.content || data.suggestions);
         setSocketState(prev => ({ ...prev, isProcessingAI: false }));
       });
 

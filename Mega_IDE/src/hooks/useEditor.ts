@@ -40,7 +40,7 @@ export function useEditor() {
   }, [socketHandleFileSelect]);
 
   const debouncedEmitChange = useDebounce((path: string, content: string) => {
-    handleSaveFile({ path, content });
+    handleSaveFile({ type: 'update', path, content });
   }, 500);
 
   const handleEditorChange = useCallback((value: string | undefined) => {
@@ -54,6 +54,7 @@ export function useEditor() {
   const handleSave = useCallback(() => {
     if (activeFile) {
       handleSaveFile({ 
+        type: 'update',
         path: activeFile.path, 
         content: activeFile.content 
       });
@@ -64,14 +65,14 @@ export function useEditor() {
     if (!fileSystem) {
       throw new Error('Please open a folder first');
     }
-    handleCreateFile({ path, content: '' });
+    handleCreateFile({ type: 'create', path, content: '' });
   }, [fileSystem, handleCreateFile]);
 
   const createNewFolder = useCallback((path: string) => {
     if (!fileSystem) {
       throw new Error('Please open a folder first');
     }
-    handleCreateFolder({ path });
+    handleCreateFolder({ type: 'create', path });
   }, [fileSystem, handleCreateFolder]);
 
   const requestAIAssistance = useCallback(() => {

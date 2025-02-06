@@ -1,296 +1,175 @@
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import { promises as fs } from 'fs';
-import path from 'path';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-
-dotenv.config();
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+const fs = require('fs');
+const simpleGit = require('simple-git');
+const archiver = require('archiver');
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+const server = http.createServer(app);
+const io = new Server(server);
+
+// Serve static files from the dist directory
+app.use(express.static('dist'));
+
+// Handle Git operations
+async function handleGitOperation(operation, socket) {
+  try {
+    const result = await operation();
+    return { success: true, ...result };
+  } catch (error) {
+    socket.emit('error', { message: error.message });
+    return { success: false, error: error.message };
   }
-});
+}
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Create a ZIP file from a directory
+function createZipFile(dirPath) {
+  return new Promise((resolve, reject) => {
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    const chunks = [];
 
-class FileSystemManager {
-  async readDirectory(dirPath) {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    const children = await Promise.all(
-      entries.map(async (entry) => {
-        const fullPath = path.join(dirPath, entry.name);
-        const node = {
-          name: entry.name,
-          path: fullPath,
-          type: entry.isDirectory() ? 'directory' : 'file'
-        };
-
-        if (entry.isDirectory()) {
-          node.children = await this.readDirectory(fullPath);
-        } else {
-          node.language = this.getLanguage(entry.name);
-        }
-
-        return node;
-      })
-    );
-
-    return children.sort((a, b) => {
-      // Directories first, then files
-      if (a.type !== b.type) {
-        return a.type === 'directory' ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
+    archive.on('data', (chunk) => chunks.push(chunk));
+    archive.on('end', () => {
+      const data = Buffer.concat(chunks);
+      resolve({
+        fileName: path.basename(dirPath) + '.zip',
+        data: data.toString('base64')
+      });
     });
-  }
+    archive.on('error', reject);
 
-  getLanguage(fileName) {
-    const ext = path.extname(fileName).toLowerCase();
-    const languageMap = {
-      '.js': 'javascript',
-      '.jsx': 'javascript',
-      '.ts': 'typescript',
-      '.tsx': 'typescript',
-      '.html': 'html',
-      '.css': 'css',
-      '.json': 'json',
-      '.md': 'markdown',
-      '.py': 'python',
-      '.java': 'java',
-      '.cpp': 'cpp',
-      '.c': 'c',
-      '.go': 'go',
-      '.rs': 'rust',
-      '.php': 'php',
-      '.rb': 'ruby',
-      '.sql': 'sql',
-      '.yaml': 'yaml',
-      '.yml': 'yaml',
-      '.xml': 'xml',
-      '.sh': 'shell',
-      '.bash': 'shell'
-    };
-    return languageMap[ext] || 'plaintext';
-  }
-
-  async readFile(filePath) {
-    try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      return content;
-    } catch (error) {
-      console.error(`Error reading file ${filePath}:`, error);
-      throw error;
-    }
-  }
-
-  async writeFile(filePath, content) {
-    try {
-      await fs.writeFile(filePath, content, 'utf-8');
-    } catch (error) {
-      console.error(`Error writing file ${filePath}:`, error);
-      throw error;
-    }
-  }
-
-  async createFile(filePath) {
-    try {
-      await fs.writeFile(filePath, '', 'utf-8');
-    } catch (error) {
-      console.error(`Error creating file ${filePath}:`, error);
-      throw error;
-    }
-  }
-
-  async createDirectory(dirPath) {
-    try {
-      await fs.mkdir(dirPath);
-    } catch (error) {
-      console.error(`Error creating directory ${dirPath}:`, error);
-      throw error;
-    }
-  }
-
-  async rename(oldPath, newPath) {
-    try {
-      await fs.rename(oldPath, newPath);
-    } catch (error) {
-      console.error(`Error renaming ${oldPath} to ${newPath}:`, error);
-      throw error;
-    }
-  }
-
-  async delete(path) {
-    try {
-      const stats = await fs.stat(path);
-      if (stats.isDirectory()) {
-        await fs.rm(path, { recursive: true });
-      } else {
-        await fs.unlink(path);
-      }
-    } catch (error) {
-      console.error(`Error deleting ${path}:`, error);
-      throw error;
-    }
-  }
+    archive.directory(dirPath, false);
+    archive.finalize();
+  });
 }
-
-class AIHandler {
-  async generateResponse(code) {
-    // For testing purposes, return a mock response
-    return {
-      content: `Here's my analysis of your code:
-
-1. Code Structure
-   - The code is well-organized
-   - Consider breaking down larger functions into smaller ones
-
-2. Best Practices
-   - Good use of modern JavaScript features
-   - Consider adding error handling for edge cases
-
-3. Suggestions
-   - Add comments to explain complex logic
-   - Consider adding unit tests
-   - Use TypeScript for better type safety
-
-Would you like me to help you implement any of these suggestions?`
-    };
-  }
-}
-
-const fileSystemManager = new FileSystemManager();
-const aiHandler = new AIHandler();
 
 io.on('connection', (socket) => {
   console.log('Client connected');
 
-  socket.on('openFolder', async (folderPath) => {
-    try {
-      const children = await fileSystemManager.readDirectory(folderPath);
-      const root = {
-        name: path.basename(folderPath),
-        path: folderPath,
-        type: 'directory',
-        children
+  // Git operations
+  socket.on('gitInit', async ({ path }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      await git.init();
+      return { message: 'Git repository initialized' };
+    }, socket);
+    socket.emit('gitOperationResult', result);
+  });
+
+  socket.on('gitClone', async ({ url, path }) => {
+    const git = simpleGit();
+    const result = await handleGitOperation(async () => {
+      await git.clone(url, path);
+      return { message: 'Repository cloned successfully' };
+    }, socket);
+    socket.emit('gitOperationResult', result);
+  });
+
+  socket.on('gitStatus', async ({ path }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      const status = await git.status();
+      return {
+        staged: status.staged,
+        not_staged: status.modified,
+        untracked: status.not_added,
+        ahead: status.ahead,
+        behind: status.behind
       };
-      socket.emit('folderContents', { root });
-    } catch (error) {
-      console.error('Error reading directory:', error);
-      socket.emit('error', { message: 'Error reading directory' });
+    }, socket);
+    if (result.success) {
+      socket.emit('gitStatus', result);
     }
   });
 
-  socket.on('requestFile', async (filePath) => {
-    try {
-      const content = await fileSystemManager.readFile(filePath);
-      socket.emit('fileContent', { path: filePath, content });
-    } catch (error) {
-      console.error('Error reading file:', error);
-      socket.emit('error', { message: 'Error reading file' });
+  socket.on('gitStage', async ({ path, file }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      await git.add(file);
+      return { message: 'File staged' };
+    }, socket);
+    socket.emit('gitOperationResult', result);
+  });
+
+  socket.on('gitStageFiles', async ({ path, files }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      await git.add(files);
+      return { message: 'Files staged' };
+    }, socket);
+    socket.emit('gitOperationResult', result);
+  });
+
+  socket.on('gitCommit', async ({ path, message }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      const commit = await git.commit(message);
+      return {
+        hash: commit.commit,
+        message: 'Changes committed successfully'
+      };
+    }, socket);
+    socket.emit('gitCommitResult', result);
+  });
+
+  socket.on('gitPush', async ({ path }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      await git.push();
+      return { message: 'Changes pushed to remote' };
+    }, socket);
+    socket.emit('gitOperationResult', result);
+  });
+
+  socket.on('gitPull', async ({ path }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      await git.pull();
+      return { message: 'Changes pulled from remote' };
+    }, socket);
+    socket.emit('gitOperationResult', result);
+  });
+
+  socket.on('gitGetCurrentBranch', async ({ path }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      const branch = await git.branch();
+      return branch.current;
+    }, socket);
+    if (result.success) {
+      socket.emit('gitCurrentBranch', result);
     }
   });
 
-  socket.on('saveFile', async ({ path: filePath, content }) => {
-    try {
-      await fileSystemManager.writeFile(filePath, content);
-      socket.emit('fileSaved', { path: filePath });
-    } catch (error) {
-      console.error('Error saving file:', error);
-      socket.emit('error', { message: 'Error saving file' });
+  socket.on('gitGetBranches', async ({ path }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      const branches = await git.branch();
+      return branches.all;
+    }, socket);
+    if (result.success) {
+      socket.emit('gitBranches', result);
     }
   });
 
-  socket.on('createFile', async ({ path: filePath }) => {
-    try {
-      await fileSystemManager.createFile(filePath);
-      const parentDir = path.dirname(filePath);
-      const children = await fileSystemManager.readDirectory(parentDir);
-      socket.emit('folderContents', {
-        root: {
-          name: path.basename(parentDir),
-          path: parentDir,
-          type: 'directory',
-          children
-        }
-      });
-    } catch (error) {
-      console.error('Error creating file:', error);
-      socket.emit('error', { message: 'Error creating file' });
-    }
+  socket.on('gitCheckoutBranch', async ({ path, branch }) => {
+    const git = simpleGit(path);
+    const result = await handleGitOperation(async () => {
+      await git.checkout(branch);
+      return { message: `Switched to branch '${branch}'` };
+    }, socket);
+    socket.emit('gitOperationResult', result);
   });
 
-  socket.on('createFolder', async ({ path: folderPath }) => {
+  // ZIP operations
+  socket.on('createZip', async ({ path }) => {
     try {
-      await fileSystemManager.createDirectory(folderPath);
-      const parentDir = path.dirname(folderPath);
-      const children = await fileSystemManager.readDirectory(parentDir);
-      socket.emit('folderContents', {
-        root: {
-          name: path.basename(parentDir),
-          path: parentDir,
-          type: 'directory',
-          children
-        }
-      });
+      const zipData = await createZipFile(path);
+      socket.emit('zipCreated', zipData);
     } catch (error) {
-      console.error('Error creating folder:', error);
-      socket.emit('error', { message: 'Error creating folder' });
-    }
-  });
-
-  socket.on('requestAIAssistance', async ({ prompt }) => {
-    try {
-      const response = await aiHandler.generateResponse(prompt);
-      socket.emit('aiResponse', response);
-    } catch (error) {
-      socket.emit('aiResponse', {
-        content: `Error: ${error.message}`
-      });
-    }
-  });
-
-  socket.on('rename', async ({ oldPath, newPath }) => {
-    try {
-      await fileSystemManager.rename(oldPath, newPath);
-      const parentDir = path.dirname(oldPath);
-      const children = await fileSystemManager.readDirectory(parentDir);
-      socket.emit('folderContents', {
-        root: {
-          name: path.basename(parentDir),
-          path: parentDir,
-          type: 'directory',
-          children
-        }
-      });
-    } catch (error) {
-      console.error('Error renaming:', error);
-      socket.emit('error', { message: 'Error renaming file/folder' });
-    }
-  });
-
-  socket.on('delete', async ({ path: filePath }) => {
-    try {
-      await fileSystemManager.delete(filePath);
-      const parentDir = path.dirname(filePath);
-      const children = await fileSystemManager.readDirectory(parentDir);
-      socket.emit('folderContents', {
-        root: {
-          name: path.basename(parentDir),
-          path: parentDir,
-          type: 'directory',
-          children
-        }
-      });
-    } catch (error) {
-      console.error('Error deleting:', error);
-      socket.emit('error', { message: 'Error deleting file/folder' });
+      socket.emit('zipError', error.message);
     }
   });
 
@@ -299,7 +178,12 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 4000;
+// Serve index.html for all routes (SPA)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
