@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mega IDE Configuration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+
+        .container {
+            max-width: 460px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #0078d4;
+            margin-bottom: 30px;
+        }
+
+        .config-section {
+            background-color: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .config-section h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #0078d4;
+            font-size: 1.2em;
+        }
+
+        .option-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        input[type="radio"] {
+            margin-right: 8px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            background-color: #3c3c3c;
+            color: #ffffff;
+            box-sizing: border-box;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #106ebe;
+        }
+
+        .browse-button {
+            background-color: #3c3c3c;
+            padding: 8px 12px;
+            margin-top: 8px;
+            width: auto;
+        }
+
+        .browse-button:hover {
+            background-color: #4c4c4c;
+        }
+
+        .info-text {
+            font-size: 0.9em;
+            color: #888888;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mega IDE Configuration</h1>
+        
+        <div class="config-section">
+            <h2>Hardware Acceleration</h2>
+            <div class="option-group">
+                <label>
+                    <input type="radio" name="mode" value="gpu" checked>
+                    GPU Mode (Hardware Acceleration Enabled)
+                </label>
+                <label>
+                    <input type="radio" name="mode" value="cpu">
+                    CPU Mode (Hardware Acceleration Disabled)
+                </label>
+                <div class="info-text">
+                    Select CPU mode if you experience graphics-related issues.
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h2>Cache Directory</h2>
+            <div class="option-group">
+                <input type="text" id="cachePath" placeholder="Default cache location" readonly>
+                <button class="browse-button" onclick="browseCacheDirectory()">Browse...</button>
+                <div class="info-text">
+                    Leave empty to use the default cache location.
+                </div>
+            </div>
+        </div>
+
+        <button onclick="startApp()">Launch Mega IDE</button>
+    </div>
+
+    <script>
+        async function browseCacheDirectory() {
+            const path = await window.electronAPI.selectDirectory();
+            if (path) {
+                document.getElementById('cachePath').value = path;
+            }
+        }
+
+        function startApp() {
+            const config = {
+                cpuMode: document.querySelector('input[name="mode"]:checked').value === 'cpu',
+                cacheFolder: document.getElementById('cachePath').value
+            };
+            window.electronAPI.startApp(config);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "appId": "com.megaide.app",
+  "productName": "Mega IDE",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json",
+    "node_modules/**/*",
+    "server.mjs"
+  ],
+  "extraResources": [
+    {
+      "from": "data",
+      "to": "data",
+      "filter": ["**/*"]
+    }
+  ],
+  "asar": false,
+  "win": {
+    "target": "dir"
+  },
+  "mac": {
+    "target": "dir"
+  },
+  "linux": {
+    "target": "dir"
+  },
+  "electronLanguages": ["en"],
+  "electronVersion": "34.1.1",
+  "extends": null,
+  "npmRebuild": true,
+  "buildDependenciesFromSource": true,
+  "nodeGypRebuild": true
+}

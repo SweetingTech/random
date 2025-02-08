@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { FileText, Save, Wand2, Folder, Plus, FolderPlus, File, ChevronRight, ChevronDown, X, GitBranch, Bot } from 'lucide-react';
 import SocketManager from './lib/socket';
@@ -216,7 +216,6 @@ function FileTreeNode({ node, level = 0, onSelect, selectedPath }: {
   );
 }
 
-
 function IDEComponent() {
   const [showGitPanel, setShowGitPanel] = useState(false);
   const {
@@ -270,25 +269,16 @@ function IDEComponent() {
     setShowGitPanel(prev => !prev);
   };
 
-  const handleFolderOpen = () => {
-    const input = document.createElement('input') as HTMLInputElement & {
-      webkitdirectory: boolean;
-    };
-    input.type = 'file';
-    input.webkitdirectory = true;
-    
-    input.onchange = (e) => {
-      const files = (e.target as HTMLInputElement).files;
-      if (files && files.length > 0) {
-        const file = files[0] as File & { webkitRelativePath: string };
-        const pathParts = file.webkitRelativePath.split('/');
-        const rootFolder = pathParts[0];
-        const fullPath = (e.target as HTMLInputElement).value.split(rootFolder)[0] + rootFolder;
-        handleFolderSelect(fullPath);
+  const handleFolderOpen = async () => {
+    try {
+      const folderPath = await window.electron.dialog.openProjectFolder();
+      if (folderPath) {
+        handleFolderSelect(folderPath);
       }
-    };
-
-    input.click();
+    } catch (error) {
+      console.error('Error opening folder:', error);
+      addToast('Failed to open folder', 'error');
+    }
   };
 
   return (
@@ -389,7 +379,6 @@ function IDEComponent() {
     </ErrorBoundary>
   );
 }
-
 
 function App() {
   return (

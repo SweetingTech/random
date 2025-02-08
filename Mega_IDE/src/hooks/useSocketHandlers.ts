@@ -21,7 +21,16 @@ interface SocketState {
   isLoadingFile: boolean;
   isProcessingAI: boolean;
   error: FileOperationError | null;
+  isConnected: boolean;
 }
+
+const createSocketError = (message: string): FileOperationError => ({
+  operation: {
+    type: 'update',
+    path: 'socket',
+  },
+  message
+});
 
 export const useSocketHandlers = ({ 
   setFileSystem, 
@@ -29,81 +38,150 @@ export const useSocketHandlers = ({
   activeFile, 
   setAiResponse 
 }: UseSocketHandlersProps) => {
-  const socket = SocketManager.getInstance();
+  const socketManager = SocketManager.getInstance();
   const [socketState, setSocketState] = useState<SocketState>({
     isLoadingFileSystem: false,
     isLoadingFile: false,
     isProcessingAI: false,
-    error: null
+    error: null,
+    isConnected: false
   });
+
+  // Try to connect when the hook is first used
+  useEffect(() => {
+    socketManager.connect().then(() => {
+      setSocketState(prev => ({ 
+        ...prev, 
+        isConnected: socketManager.isConnected() 
+      }));
+    });
+  }, []);
 
   const clearError = useCallback(() => {
     setSocketState(prev => ({ ...prev, error: null }));
   }, []);
 
   const handleFolderSelect = useCallback((folderPath: string) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('Server connection not available - some features may be limited')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, isLoadingFileSystem: true, error: null }));
-    socket.emit('openFolder', folderPath);
-  }, [socket]);
+    socketManager.emit('openFolder', folderPath);
+  }, []);
 
   const handleFileSelect = useCallback((filePath: string) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('Server connection not available - some features may be limited')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, isLoadingFile: true, error: null }));
-    socket.emit('requestFile', filePath);
-  }, [socket]);
+    socketManager.emit('requestFile', filePath);
+  }, []);
 
   const handleCreateFile = useCallback((operation: FileOperation) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('Server connection not available - some features may be limited')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, error: null }));
-    socket.emit('createFile', operation);
-  }, [socket]);
+    socketManager.emit('createFile', operation);
+  }, []);
 
   const handleCreateFolder = useCallback((operation: FileOperation) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('Server connection not available - some features may be limited')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, error: null }));
-    socket.emit('createFolder', operation);
-  }, [socket]);
+    socketManager.emit('createFolder', operation);
+  }, []);
 
   const handleRename = useCallback((oldPath: string, newPath: string) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('Server connection not available - some features may be limited')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, error: null }));
-    socket.emit('rename', { oldPath, newPath });
-  }, [socket]);
+    socketManager.emit('rename', { oldPath, newPath });
+  }, []);
 
   const handleDelete = useCallback((path: string) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('Server connection not available - some features may be limited')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, error: null }));
-    socket.emit('delete', { path });
-  }, [socket]);
+    socketManager.emit('delete', { path });
+  }, []);
 
   const handleSaveFile = useCallback((operation: FileOperation) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('Server connection not available - some features may be limited')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, error: null }));
-    socket.emit('saveFile', operation);
-  }, [socket]);
+    socketManager.emit('saveFile', operation);
+  }, []);
 
   const handleRequestAI = useCallback((prompt: string) => {
+    if (!socketManager.isConnected()) {
+      setSocketState(prev => ({ 
+        ...prev, 
+        error: createSocketError('AI features require server connection')
+      }));
+      return;
+    }
     setSocketState(prev => ({ ...prev, isProcessingAI: true, error: null }));
     setAiResponse('Analyzing code...');
-    socket.emit('requestAIAssistance', { prompt });
-  }, [socket, setAiResponse]);
+    socketManager.emit('requestAIAssistance', { prompt });
+  }, [setAiResponse]);
 
   useEffect(() => {
     const setupSocketListeners = () => {
-      socket.on('folderContents', (data: SocketResponse) => {
+      if (!socketManager.isConnected()) return;
+
+      socketManager.on('folderContents', (data: SocketResponse) => {
         if (data.root) {
           setFileSystem(data.root || null);
         }
         setSocketState(prev => ({ ...prev, isLoadingFileSystem: false }));
       });
 
-      socket.on('fileContent', (data: FileContentResponse) => {
+      socketManager.on('fileContent', (data: FileContentResponse) => {
         if (activeFile && activeFile.path === data.path) {
           setActiveFile({ ...activeFile, content: data.content });
         }
         setSocketState(prev => ({ ...prev, isLoadingFile: false }));
       });
 
-      socket.on('aiResponse', (data: AIResponse) => {
+      socketManager.on('aiResponse', (data: AIResponse) => {
         setAiResponse(data.content || data.suggestions);
         setSocketState(prev => ({ ...prev, isProcessingAI: false }));
       });
 
-      socket.on('error', (data: FileOperationError) => {
+      socketManager.on('error', (data: FileOperationError) => {
         setSocketState(prev => ({ 
           ...prev, 
           error: data,
@@ -117,12 +195,14 @@ export const useSocketHandlers = ({
     setupSocketListeners();
 
     return () => {
-      socket.off('folderContents');
-      socket.off('fileContent');
-      socket.off('aiResponse');
-      socket.off('error');
+      if (socketManager.isConnected()) {
+        socketManager.off('folderContents');
+        socketManager.off('fileContent');
+        socketManager.off('aiResponse');
+        socketManager.off('error');
+      }
     };
-  }, [socket, activeFile, setFileSystem, setActiveFile, setAiResponse]);
+  }, [socketManager, activeFile, setFileSystem, setActiveFile, setAiResponse]);
 
   return {
     ...socketState,
