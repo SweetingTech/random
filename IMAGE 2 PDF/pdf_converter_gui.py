@@ -312,6 +312,9 @@ class PDFConverterApp:
                 self.toggle_custom_filename()
         else:
             self.combined_filename_frame.pack_forget()
+            
+        # Update the output_dir variable to match what's in the entry field
+        self.output_dir = self.output_path_var.get()
     
     def toggle_custom_filename(self):
         """Toggle visibility of custom filename entry field"""
@@ -331,6 +334,16 @@ class PDFConverterApp:
             return
             
         if not self.processing:
+            # Make sure output directory exists
+            self.output_dir = self.output_path_var.get()  # Update from the text field
+            
+            if not os.path.exists(self.output_dir):
+                try:
+                    os.makedirs(self.output_dir)
+                except Exception as e:
+                    messagebox.showerror("Error", f"Could not create output directory: {str(e)}")
+                    return
+                    
             # Sort files by type for better handling
             image_files = []
             epub_files = []

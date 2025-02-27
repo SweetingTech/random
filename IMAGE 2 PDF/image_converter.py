@@ -84,6 +84,9 @@ class ImageConverter:
         try:
             # Generate output path
             output_filename = f"{self.app.combined_filename.get()}.pdf"
+            if not output_filename.endswith('.pdf'):
+                output_filename += '.pdf'
+                
             output_path = os.path.join(self.app.output_dir, output_filename)
             
             # Get page size
