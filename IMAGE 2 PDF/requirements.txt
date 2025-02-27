@@ -1,0 +1,4 @@
+pillow>=9.0.0
+reportlab>=3.6.0
+ebooklib>=0.17.0
+beautifulsoup4>=4.10.0
